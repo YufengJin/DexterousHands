@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  dexterousnhands:
+    container_name: dexterousnhands_container
+    image: ${IMAGE:-dexterousnhands:latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    network_mode: host
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      # Follow skill convention: mount this repo explicitly at /workspace/<project>
+      - ../:/workspace/DexterousHands
+      # IsaacGym source is a sibling of this repo on the host; mount it separately
+      - ../../isaacgym:/workspace/isaacgym
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    environment:
+      - DISPLAY=${DISPLAY}
+      - GPU=${GPU:-all}
+      # Force matplotlib to a non-GUI backend. With DISPLAY set, matplotlib
+      # otherwise tries TkAgg → needs python3-tk which is not installed.
+      # IsaacGym's viewer uses its own OpenGL stack and is NOT affected.
+      - MPLBACKEND=Agg
+    command: tail -f /dev/null
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  dexterousnhands:
+    container_name: dexterousnhands_container
+    image: ${IMAGE:-dexterousnhands:latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    network_mode: host
+    volumes:
+      # Follow skill convention: mount this repo explicitly at /workspace/<project>
+      - ../:/workspace/DexterousHands
+      # IsaacGym source is a sibling of this repo on the host; mount it separately
+      # (NOT baked into the image; extracted by docker/setup.sh from the community image)
+      - ../../isaacgym:/workspace/isaacgym
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    environment:
+      - GPU=${GPU:-all}
+    command: tail -f /dev/null
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
