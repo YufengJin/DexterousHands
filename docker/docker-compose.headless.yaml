@@ -3,7 +3,7 @@ version: "3.9"
 services:
   dexterousnhands:
     container_name: dexterousnhands_container
-    image: ${IMAGE:-dexterousnhands:latest}
+    image: ${IMAGE:-yufengjin/dexterousnhands:latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
