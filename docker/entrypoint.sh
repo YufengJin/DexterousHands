@@ -1,46 +1,39 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -e
 
-# Remove stale sentinel from previous container runs so setup.sh's wait loop
-# doesn't falsely think entrypoint has already finished when it re-runs.
+# Sync sentinel for setup.sh (IsaacGym workflow). Harmless when no setup.sh
+# is reading it — just an empty file in /tmp that gets touched at end.
 rm -f /tmp/entrypoint_done
 
-cd /workspace
+export PATH="/opt/venv/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
+export VIRTUAL_ENV="/opt/venv"
 
-# Determine DexterousHands project root (may be /workspace/DexterousHands when parent dir is mounted)
-DEXHANDS_ROOT=""
-if [ -f /workspace/DexterousHands/setup.py ]; then
-  DEXHANDS_ROOT="/workspace/DexterousHands"
-elif [ -f /workspace/setup.py ]; then
-  DEXHANDS_ROOT="/workspace"
+# ── 1. Editable install (project mounted at /workspace/dexteroushands) ─────
+# Both branches resolve install_requires by default. If you need --no-deps
+# (e.g. to avoid uv re-resolving heavy science stack), add a `post_install_hooks`
+# entry to install_plan.json that re-runs the install with --no-deps.
+if [ -f "/workspace/dexteroushands/pyproject.toml" ]; then
+    echo ">> Installing editable package (pyproject.toml)..."
+    cd /workspace/dexteroushands && uv pip install -e . --index-strategy unsafe-best-match && cd - > /dev/null
+elif [ -f "/workspace/dexteroushands/setup.py" ]; then
+    echo ">> Installing editable package (setup.py)..."
+    cd /workspace/dexteroushands && uv pip install -e . --index-strategy unsafe-best-match && cd - > /dev/null
 fi
 
-if [ -n "${DEXHANDS_ROOT}" ]; then
-  # Install IsaacGym (editable) if the user has placed it alongside DexterousHands.
-  # Expected layout on the host:
-  #   <parent>/
-  #     DexterousHands/   <- this repo
-  #     isaacgym/         <- downloaded from https://developer.nvidia.com/isaac-gym
-  ISAACGYM_PYTHON="/workspace/isaacgym/python"
-  if [ -f "${ISAACGYM_PYTHON}/setup.py" ]; then
-    echo "Installing isaacgym from ${ISAACGYM_PYTHON} (editable)..."
-    uv pip install -e "${ISAACGYM_PYTHON}"
-  else
-    echo "[WARN] IsaacGym not found at ${ISAACGYM_PYTHON}."
-    echo "       Download from https://developer.nvidia.com/isaac-gym and place it at:"
-    echo "       $(dirname ${DEXHANDS_ROOT})/isaacgym/"
-    echo "       Then restart the container."
-  fi
-
-  echo "Installing bidexhands from ${DEXHANDS_ROOT} (editable)..."
-  uv pip install -e "${DEXHANDS_ROOT}"
+# ── 2. Post-install hooks from InstallationPlan ──────────────────────────────
+# Rendered by render_base.py from <repo>/.nautilus/install_plan.json's
+# `post_install_hooks`. `when=first_run` entries are wrapped in a sentinel
+# guard; `when=every_run` entries fire on every container start.
+if [ ! -f /tmp/.nautilus.first-run ]; then
+    if [ -f /workspace/isaacgym/python/setup.py ]; then cd /workspace/isaacgym/python && uv pip install -e .; else echo 'WARN: isaacgym not mounted at /workspace/isaacgym; skipping isaacgym install'; fi
+    touch /tmp/.nautilus.first-run
 fi
 
-# Write sentinel so smoke_test.sh knows the entrypoint finished
+# 
+# Slot for downstream sub-skills to inject project-specific steps.
+
+# <<<EXTENSION_ENTRYPOINT_INSERT_ABOVE>>> — sub-skills insert pre-exec hooks above this line
+
+echo ">> Ready."
 touch /tmp/entrypoint_done
-
-if [ $# -eq 0 ]; then
-  exec bash
-else
-  exec "$@"
-fi
+exec "$@"

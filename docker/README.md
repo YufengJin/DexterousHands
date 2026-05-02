@@ -1,111 +1,68 @@
-# DexterousHands Docker Environment
+# Docker Setup for DexterousHands
 
-GPU-ready Docker environment for training dexterous hand policies with IsaacGym.
+## Prerequisites
 
-## Quick Start (one command)
-
-```bash
-bash docker/setup.sh
-```
-
-`setup.sh` is idempotent and does everything needed:
-
-1. Extracts IsaacGym from a community Docker image to `../isaacgym/` (if missing)
-2. Builds the image
-3. Starts the container and waits for the editable installs to finish
-4. Runs the smoke test
-
-Host prerequisites (Docker, GPU driver, NVIDIA Container Toolkit) are **not** checked by `setup.sh` — verify them yourself before running it (see the Prerequisites section below).
-
-The sections below describe the manual steps (and are the fallback if `setup.sh` fails).
-
----
-
-## Prerequisites (manual, required on host)
-
-### 1. NVIDIA GPU driver + Container Toolkit
+Run the prerequisite checker — it verifies Docker, Compose plugin, and the NVIDIA driver + Container Toolkit:
 
 ```bash
-# Verify GPU is accessible
-docker run --rm --gpus all nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu20.04 nvidia-smi
+bash docker/check_prereqs.sh
 ```
 
-### 2. IsaacGym source
+If any check fails, the script prints an install link and exits non-zero.
 
-`setup.sh` auto-extracts IsaacGym from a community Docker image. To do it manually instead, download **IsaacGym Preview Release 4** from https://developer.nvidia.com/isaac-gym and lay the repos out as:
+Manual install references:
 
-```
-<parent>/
-  DexterousHands/    <- this repo
-  isaacgym/          <- extracted source
-    python/
-      setup.py
-      isaacgym/
-```
+- Docker Engine — https://docs.docker.com/engine/install/
+- NVIDIA Container Toolkit — https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+- NVIDIA GPU driver — https://www.nvidia.com/en-us/drivers/
 
-The compose files mount the **parent directory** as `/workspace`, so the container sees both repos at `/workspace/DexterousHands` and `/workspace/isaacgym`.
+## Dependencies (uv)
 
----
-
-## Manual build (if not using setup.sh)
+Runtime versions are pinned in `pyproject.toml` and `uv.lock`. Refresh the lockfile after editing dependencies:
 
 ```bash
-cd DexterousHands
+uv lock
+```
+
+Docker installs the locked environment with `uv sync --frozen --no-install-project` (see `docker/Dockerfile`).
+
+## Build
+
+From project root:
+
+```bash
 docker compose -f docker/docker-compose.headless.yaml build
 ```
 
----
+## Volume mounts
 
-## Run
+Update paths in the compose file to match your system.
 
-**Headless (training / CI):**
+| Container path | Purpose |
+|----------------|---------|
+| `../` → `/workspace/dexteroushands` | Project (editable install) |
+| `${HOME}/.cache/huggingface` | HF model cache |
+
+## Usage
+
+### Headless (training / serving)
+
 ```bash
 docker compose -f docker/docker-compose.headless.yaml up -d
-docker exec -it dexterousnhands_container bash
+docker exec -it dexteroushands-headless bash
 ```
 
-**X11 (visualization on local display):**
+### X11 (GUI)
+
 ```bash
-xhost +local:docker
+xhost +local:
 docker compose -f docker/docker-compose.x11.yaml up -d
-docker exec -it dexterousnhands_container bash
+docker exec -it dexteroushands-gui bash
 ```
 
----
+## Entrypoint
 
-## Smoke Test
+On each start:
 
-The full smoke test script covers GPU, Python deps, bidexhands editable install, IsaacGym import, and a 1-iteration training run:
-
-```bash
-docker exec dexterousnhands_container bash /workspace/DexterousHands/docker/smoke_test.sh
-```
-
-Quick manual checks:
-
-```bash
-docker exec -it dexterousnhands_container nvidia-smi
-docker exec -it dexterousnhands_container python -c \
-  "import bidexhands; print(bidexhands.__file__)"
-docker exec -it dexterousnhands_container python -c \
-  "import isaacgym; print('isaacgym ok')"
-```
-
----
-
-## Training
-
-```bash
-docker exec -it dexterousnhands_container bash
-# Inside container:
-cd /workspace/DexterousHands/bidexhands
-python train.py --task ShadowHandOver --algo ppo --num_envs 4096
-```
-
----
-
-## Stop
-
-```bash
-docker compose -f docker/docker-compose.headless.yaml down
-```
+1. Uses uv-managed venv at `/opt/venv` (Python 3.8)
+2. When `pyproject.toml` is present: `uv pip install -e .` (deps already synced in the image)

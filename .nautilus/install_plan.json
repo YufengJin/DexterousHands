@@ -1,0 +1,51 @@
+{
+  "primary_install_strategy": "uv-pip-requirements",
+  "system_apt_packages": [],
+  "third_party_clones": [],
+  "installation_steps": [
+    {
+      "kind": "uv_pip_install",
+      "args": ["--no-deps", "setuptools>=62.3,<81"],
+      "comment": "auto-injected: needs_setuptools_pin quirk (rl-games==1.5.2 uses pkg_resources)"
+    },
+    {
+      "kind": "uv_pip_install",
+      "args": ["-r", "requirements.txt"],
+      "comment": "install Python deps from requirements.txt"
+    },
+    {
+      "kind": "uv_pip_install",
+      "args": ["numpy==1.23.0", "rl-games==1.5.2"],
+      "comment": "extra deps from setup.py not in requirements.txt"
+    }
+  ],
+  "post_install_hooks": [
+    {
+      "kind": "shell",
+      "cmd": "if [ -f /workspace/isaacgym/python/setup.py ]; then cd /workspace/isaacgym/python && uv pip install -e .; else echo 'WARN: isaacgym not mounted at /workspace/isaacgym; skipping isaacgym install'; fi",
+      "when": "first_run"
+    }
+  ],
+  "runtime_mounts": [
+    {
+      "host": "../../isaacgym",
+      "container": "/workspace/isaacgym",
+      "ro": false,
+      "evidence": "Once Isaac Gym is installed and samples work within your current python environment, install this repo: pip install -e ."
+    }
+  ],
+  "runtime_env_vars": [],
+  "evidence": {
+    "readme_quotes": [
+      "Details regarding installation of IsaacGym can be found here. We currently support the Preview Release 3/4 version of IsaacGym.",
+      "Once Isaac Gym is installed and samples work within your current python environment, install this repo: pip install -e .",
+      "requirements.txt: gym, torch==1.8.1, matplotlib==3.5.1, tqdm, ipdb",
+      "setup.py INSTALL_REQUIRES: gym, matplotlib==3.5.1, tqdm, ipdb, numpy==1.23.0, rl-games==1.5.2"
+    ],
+    "ambiguities": [
+      "requirements.txt pins torch==1.8.1; kept as-is since IsaacGym Preview 4 was validated with this version",
+      "needs_setuptools_pin quirk active due to rl-games==1.5.2 using pkg_resources; auto-injected setuptools>=62.3,<81",
+      "isaacgym is closed-source and cannot be cloned at build time; installed via post_install_hook on first container start after sibling mount at /workspace/isaacgym"
+    ]
+  }
+}
