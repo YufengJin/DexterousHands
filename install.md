@@ -57,7 +57,30 @@ python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 python -c "import bidexhands; print(bidexhands.__file__)"
 ```
 
-The last line must resolve under `/workspace/DexterousHands/` — this proves that the mounted source is the one the interpreter imports (editable install succeeded).
+The last line must resolve under `/workspace/dexteroushands/` — this proves that the mounted source is the one the interpreter imports (editable install succeeded).
+
+### IsaacGym CPU PhysX smoke test
+
+```bash
+python -c "
+import isaacgym
+from isaacgym import gymapi
+gym = gymapi.acquire_gym()
+sp = gymapi.SimParams()
+sp.up_axis = gymapi.UP_AXIS_Z
+sp.gravity = gymapi.Vec3(0, 0, -9.81)
+sp.physx.solver_type = 1
+sp.physx.use_gpu = False
+sp.use_gpu_pipeline = False
+sim = gym.create_sim(0, -1, gymapi.SIM_PHYSX, sp)
+gym.destroy_sim(sim)
+print('CPU PhysX OK')
+"
+```
+
+> Note: GPU PhysX pipeline (`use_gpu=True`) may SIGSEGV on host driver 570+. This is a
+> known IsaacGym Preview 4 limitation on newer drivers and is not a failure of this setup.
+> On this host (RTX 4090, driver 570.211.01) GPU PhysX passed.
 
 ## Stop / clean up
 
